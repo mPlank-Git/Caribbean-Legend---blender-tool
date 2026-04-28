@@ -1,0 +1,89 @@
+Terrain RGB Mask Painter – Description
+
+Purpose
+-------
+This tool allows you to create and paint a single RGB mask that controls multiple terrain texture layers inside a material.
+
+Instead of using large unique textures, it enables blending several tileable materials using a compact mask texture.
+--------------------------------------------------
+Core Concept
+------------
+The system uses one RGB mask to control four layers:
+
+Black (0,0,0) – Base layer (default surface)
+Red           – Layer 1
+Green         – Layer 2 (overrides Red)
+Blue          – Layer 3 (overrides all layers)
+
+The mask is painted as a regular texture, but blending is handled in the material using a layered priority system.
+
+--------------------------------------------------
+
+Blending Logic
+--------------
+- Layers are not simply mixed together
+- Higher layers override lower ones (Blue > Green > Red > Base)
+- Overlapping areas redistribute weights between layers
+- Base layer is removed from overlap zones
+- Transitions remain smooth without visual artifacts
+
+--------------------------------------------------
+
+Workflow
+--------
+1. Assign textures to 4 layers (Base, R, G, B)
+2. Create an RGB mask
+3. Paint the mask using Texture Paint
+4. Export the mask and use it in the engine shader
+
+--------------------------------------------------
+
+Result
+------
+A single mask texture controls multiple terrain materials efficiently, providing a scalable and optimized workflow for large environments.
+
+
+
+Terrain RGB Mask Painter – Описание
+
+Назначение
+----------
+Инструмент позволяет создавать и рисовать одну RGB-маску, которая управляет несколькими слоями текстур террейна внутри материала.
+
+Вместо использования больших уникальных текстур применяется смешивание тайловых материалов через компактную маску.
+--------------------------------------------------
+Основная концепция
+------------------
+Система использует одну RGB-маску для управления четырьмя слоями:
+
+Black (0,0,0) – базовый слой (основа)
+Red           – слой 1
+Green         – слой 2 (перекрывает Red)
+Blue          – слой 3 (перекрывает все слои)
+
+Маска рисуется как обычная текстура, но логика смешивания реализована в материале через систему приоритетов.
+
+--------------------------------------------------
+
+Логика смешивания
+-----------------
+- Слои не просто складываются
+- Верхние слои перекрывают нижние (Blue > Green > Red > Base)
+- В зонах пересечения веса перераспределяются между слоями
+- Базовый слой не просвечивает в overlap-зонах
+- Переходы остаются плавными без артефактов
+
+--------------------------------------------------
+
+Рабочий процесс
+---------------
+1. Назначить текстуры для 4 слоёв (Base, R, G, B)
+2. Создать RGB-маску
+3. Рисовать маску в Texture Paint
+4. Экспортировать маску и использовать в шейдере движка
+
+--------------------------------------------------
+
+Результат
+---------
+Одна маска управляет несколькими материалами террейна, обеспечивая оптимизированный и масштабируемый пайплайн для больших локаций.
