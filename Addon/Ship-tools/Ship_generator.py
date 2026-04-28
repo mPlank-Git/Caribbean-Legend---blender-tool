@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Create Ship Hierarchy",
+    "name": "Ship_Locator_editor",
     "author": "mPlank",
     "version": (1, 9, 2),
     "blender": (3, 6, 0),
