@@ -8,106 +8,67 @@ Black (0,0,0) – Base layer (bottom)
 Red           – layer 1
 Green         – layer 2 (overrides Red)
 Blue          – layer 3 (overrides everything)
-
-Layers are blended automatically:
-- no muddy transitions
-- no base bleeding in overlaps
-- smooth blending
-
 --------------------------------------------------
+1. Select the terrain mesh.
 
-Model Setup
------------
-The object must have 2 UV channels:
+2. Make sure the mesh has two UV channels:
+   UV1 – for tiled terrain textures.
+   UV2 – for the RGB mask.
 
-UV1 – for texture tiling
-UV2 – for the mask
+3. Assign textures for all layers:
+   Base Layer
+   Red Layer
+   Green Layer
+   Blue Layer
 
---------------------------------------------------
+   Each layer uses:
+   Albedo
+   Normal
+   RMA
 
-Layer Setup
------------
-Each layer uses:
+   RMA packing:
+   R = Roughness
+   G = Metallic
+   B = AO
 
-- Albedo
-- Normal
-- RMA (R=Roughness, G=Metallic, B=AO)
+4. Create the mask:
+   Set mask name.
+   Set mask resolution.
+   Click Create RGB Mask.
 
-Layers:
-- Base
-- Red
-- Green
-- Blue
+5. Build the preview material:
+   Click Build / Update Material.
 
---------------------------------------------------
+6. Assign the mask for painting:
+   Click Assign Mask For Paint.
 
-Creating the Mask
------------------
-1. Set name and resolution
-2. Click:
-   Create RGB Mask
+7. Switch Blender to Texture Paint mode.
 
-3. Assign it for painting:
-   Assign Mask For Paint
+8. Paint the mask:
+   Base – paints black and returns to the Base layer.
+   R – paints the Red layer.
+   G – paints the Green layer.
+   B – paints the Blue layer.
 
---------------------------------------------------
+9. Optional:
+   Use ADD Paint OFF for normal Mix painting.
+   Use ADD Paint ON if you want R/G/B to be added without erasing existing channels.
+   Base always paints in Mix mode.
 
-Painting
---------
-Work in Texture Paint mode
+10. Preview modes:
+   Material – final blended terrain.
+   Mask – raw RGB mask.
+   R / G / B – individual channels.
 
-Buttons:
+11. Mask tools:
+   Blur – softens transitions.
+   Fill Base / R / G / B – fills the entire mask with selected layer.
 
-Base – erase (black)
-R    – red layer
-G    – green layer
-B    – blue layer
+12. Save the mask:
+   Click Save Mask.
+   Export it as PNG.
 
-Important:
-The mask is just an RGB texture.
-Layer behavior is handled by the material, not the texture itself.
-
---------------------------------------------------
-
-Tools
------
-Blur – smooths transitions
-
-Fill:
-Base / R / G / B – fills the entire mask with selected layer
-
---------------------------------------------------
-
-Preview
--------
-Material – final result
-Mask     – RGB mask
-R / G / B – individual channels
-
---------------------------------------------------
-
-Export
-------
-Save Mask
-
-Saves the mask as a PNG for use in engine.
-
---------------------------------------------------
-
-Engine Notes
-------------
-- Import mask as Non-Color (linear)
-- UV2 = mask
-- UV1 = texture tiling
-
---------------------------------------------------
-
-Result
-------
-1 mask = 4 materials
-
-Benefits:
-- reduced memory usage
-- smaller build size
-- fast workflow
-- flexible blending
+13. Engine setup:
+   Import mask as Non-Color / Linear.
+   Use UV2 for the mask.
+   Use UV1 for tiled textures.
