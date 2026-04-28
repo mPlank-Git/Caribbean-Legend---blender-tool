@@ -27,7 +27,7 @@ def get_active_object(context):
 
 def ensure_material(obj):
     if obj.active_material is None:
-        mat = bpy.data.materials.new("Terrain_RGB_Mask_Material")
+        mat = bpy.data.materials.new("CL_Terrain_RGB_Mask")
         mat.use_nodes = True
         obj.data.materials.append(mat)
         obj.active_material = mat
