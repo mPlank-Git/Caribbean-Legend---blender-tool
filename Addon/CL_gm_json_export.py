@@ -22,6 +22,7 @@ from bpy.props import (
     EnumProperty,
 )
 from bpy.types import Operator, Panel, PropertyGroup, UIList, AddonPreferences
+from bpy.app.handlers import persistent
 import os
 import json
 
@@ -44,6 +45,7 @@ PATH_PRESETS = {
     "Vegetation": "Resource\\Textures\\Vegetation\\",
 }
 
+
 # UI-список пресетов для EnumProperty.
 # Если добавляешь новый preset в PATH_PRESETS, добавь его и сюда.
 PATH_PRESET_ITEMS = [
@@ -52,6 +54,9 @@ PATH_PRESET_ITEMS = [
     ("Location", "Location", "Resource\\Textures\\Location\\"),
     ("Vegetation", "Vegetation", "Resource\\Textures\\Vegetation\\"),
 ]
+
+
+_LAST_VIEWPORT_ACTIVE_OBJECT = ""
 
 
 def normalize_path(p: str) -> str:
@@ -148,6 +153,7 @@ def _iter_image_texture_nodes(node_tree, visited=None):
         return
     if visited is None:
         visited = set()
+
     ptr = node_tree.as_pointer()
     if ptr in visited:
         return
@@ -174,6 +180,7 @@ def detect_textures_from_object(obj: bpy.types.Object, preset_name: str = "NONE"
 
     if not obj or obj.type != "MESH":
         return (None, None, None)
+
     if not obj.material_slots:
         return (None, None, None)
 
@@ -190,8 +197,10 @@ def detect_textures_from_object(obj: bpy.types.Object, preset_name: str = "NONE"
 
         if rma is None and "_rma" in low:
             rma = build_texture_path(name, preset_name)
+
         if nom is None and "_nom" in low:
             nom = build_texture_path(name, preset_name)
+
         if emission is None and "_emission" in low:
             emission = build_texture_path(name, preset_name)
 
@@ -213,13 +222,16 @@ def ensure_entry(models: dict, obj: bpy.types.Object, refresh_textures=False):
 
     for k, v in DEFAULTS.items():
         entry.setdefault(k, v)
+
     entry.setdefault("path_preset", "NONE")
 
     if refresh_textures:
         preset_name = entry.get("path_preset", "NONE")
         rma, nom, _em = detect_textures_from_object(obj, preset_name)
+
         if rma:
             entry["rma_texture"] = normalize_path(rma)
+
         if nom:
             entry["normal_texture"] = normalize_path(nom)
 
@@ -230,11 +242,19 @@ def normalize_models_before_write(models: dict):
             ent.setdefault("path_preset", "NONE")
 
             if "rma_texture" in ent:
-                ent["rma_texture"] = normalize_path(ent.get("rma_texture", DEFAULTS["rma_texture"])) or DEFAULTS["rma_texture"]
+                ent["rma_texture"] = normalize_path(
+                    ent.get("rma_texture", DEFAULTS["rma_texture"])
+                ) or DEFAULTS["rma_texture"]
+
             if "normal_texture" in ent:
-                ent["normal_texture"] = normalize_path(ent.get("normal_texture", DEFAULTS["normal_texture"])) or DEFAULTS["normal_texture"]
+                ent["normal_texture"] = normalize_path(
+                    ent.get("normal_texture", DEFAULTS["normal_texture"])
+                ) or DEFAULTS["normal_texture"]
+
             if "emission_texture" in ent:
-                ent["emission_texture"] = normalize_path(ent.get("emission_texture", ""))
+                ent["emission_texture"] = normalize_path(
+                    ent.get("emission_texture", "")
+                )
 
 
 def sync_collection(scene: bpy.types.Scene, coll: bpy.types.Collection, refresh_textures=False, remove_missing=True):
@@ -285,21 +305,30 @@ def batch_flag_status(context, coll, flag_name: str) -> str:
 
     if all(v == 1 for v in values):
         return "On"
+
     if all(v == 0 for v in values):
         return "Off"
+
     return "Mixed"
 
 
 def sync_active_object_from_viewport(context):
-    scene = context.scene
-    settings = scene.gmjson_settings
-    coll = settings.collection
-    wm = context.window_manager
-
-    if not coll:
+    scene = getattr(context, "scene", None)
+    if not scene or not hasattr(scene, "gmjson_settings"):
         return
 
-    active = context.active_object
+    settings = scene.gmjson_settings
+    coll = settings.collection
+    wm = getattr(context, "window_manager", None)
+
+    if not wm or not coll:
+        return
+
+    view_layer = getattr(context, "view_layer", None)
+    if not view_layer:
+        return
+
+    active = view_layer.objects.active
     if not active or active.type != "MESH":
         return
 
@@ -311,6 +340,7 @@ def sync_active_object_from_viewport(context):
         return
 
     rebuild_object_list(context)
+
     for i, it in enumerate(scene.gmjson_objects):
         if it.name == active.name:
             settings.active_index = i
@@ -323,11 +353,17 @@ class GMJSON_ObjectItem(PropertyGroup):
 
 def _on_collection_change(self, context):
     rebuild_object_list(context)
+
     settings = context.scene.gmjson_settings
     if settings.collection:
         folder = get_folder_for_collection(context.scene, settings.collection)
         if folder:
-            sync_collection(context.scene, settings.collection, refresh_textures=False, remove_missing=False)
+            sync_collection(
+                context.scene,
+                settings.collection,
+                refresh_textures=False,
+                remove_missing=False
+            )
 
 
 def _on_active_index_change(self, context):
@@ -449,6 +485,7 @@ def _proxy_update(self, context):
 
     for k, v in DEFAULTS.items():
         entry.setdefault(k, v)
+
     entry.setdefault("path_preset", "NONE")
 
     wm = context.window_manager
@@ -519,12 +556,14 @@ class GMJSON_OT_select_folder(Operator):
         if not context.scene.gmjson_settings.collection:
             self.report({"WARNING"}, "No collection selected")
             return {"CANCELLED"}
+
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
     def execute(self, context):
         coll = context.scene.gmjson_settings.collection
         folder = self.directory
+
         if not folder:
             self.report({"WARNING"}, "No folder selected")
             return {"CANCELLED"}
@@ -547,6 +586,7 @@ class GMJSON_OT_sync_collection(Operator):
 
     def execute(self, context):
         coll = context.scene.gmjson_settings.collection
+
         if not coll:
             self.report({"WARNING"}, "No collection selected")
             return {"CANCELLED"}
@@ -568,6 +608,7 @@ class GMJSON_OT_sync_collection(Operator):
 
         rebuild_object_list(context)
         self.report({"INFO"}, "Synced" + (f", removed {len(removed)}" if removed else ""))
+
         return {"FINISHED"}
 
 
@@ -579,6 +620,7 @@ class GMJSON_OT_save_export(Operator):
     def execute(self, context):
         scene = context.scene
         coll = scene.gmjson_settings.collection
+
         if not coll:
             self.report({"WARNING"}, "No collection selected")
             return {"CANCELLED"}
@@ -633,6 +675,7 @@ class GMJSON_OT_save_export(Operator):
 
         normalize_models_before_write(models)
         write_json(path, data)
+
         self.report({"INFO"}, f"Saved: {os.path.basename(path)}")
         return {"FINISHED"}
 
@@ -644,10 +687,12 @@ class GMJSON_OT_refresh_textures_active(Operator):
 
     def execute(self, context):
         coll = context.scene.gmjson_settings.collection
+
         if not coll:
             return {"CANCELLED"}
 
         obj_name = context.window_manager.gmjson_proxy_object
+
         if not obj_name:
             self.report({"WARNING"}, "No active object selected in list")
             return {"CANCELLED"}
@@ -663,8 +708,10 @@ class GMJSON_OT_refresh_textures_active(Operator):
 
         if rma:
             wm.gmjson_rma_texture = normalize_path(rma)
+
         if nom:
             wm.gmjson_normal_texture = normalize_path(nom)
+
         if wm.gmjson_emission and emission:
             wm.gmjson_emission_texture = normalize_path(emission)
 
@@ -681,6 +728,7 @@ class GMJSON_OT_reset_defaults_active(Operator):
 
     def execute(self, context):
         wm = context.window_manager
+
         wm.gmjson_reflection = False
         wm.gmjson_alpha = False
         wm.gmjson_rma_texture = DEFAULTS["rma_texture"]
@@ -691,6 +739,7 @@ class GMJSON_OT_reset_defaults_active(Operator):
         wm.gmjson_emission = False
         wm.gmjson_emission_texture = ""
         wm.gmjson_path_preset = "NONE"
+
         return {"FINISHED"}
 
 
@@ -804,6 +853,7 @@ class GMJSON_OT_apply_path_preset_to_selected(Operator):
 
             if rma:
                 entry["rma_texture"] = normalize_path(rma)
+
             if nom:
                 entry["normal_texture"] = normalize_path(nom)
 
@@ -878,11 +928,20 @@ class GMJSON_PT_panel(Panel):
             box.label(text=", ".join(dups[:6]) + (" ..." if len(dups) > 6 else ""))
 
         col.operator("gmjson.sync_collection", text="Sync (Add Defaults)", icon="FILE_REFRESH").refresh_textures = False
+
         op = col.operator("gmjson.sync_collection", text="Sync + Refresh Textures", icon="TEXTURE")
         op.refresh_textures = True
         op.remove_missing = True
 
-        col.template_list("GMJSON_UL_objects", "", scene, "gmjson_objects", settings, "active_index", rows=8)
+        col.template_list(
+            "GMJSON_UL_objects",
+            "",
+            scene,
+            "gmjson_objects",
+            settings,
+            "active_index",
+            rows=8
+        )
 
         row_focus = col.row(align=True)
         row_focus.prop(wm, "gmjson_viewport_auto_selection", text="Viewport Auto Selection")
@@ -911,6 +970,7 @@ class GMJSON_PT_panel(Panel):
 
             box.separator()
             box.prop(wm, "gmjson_animation_enabled", text="Animation")
+
             row_anim = box.row()
             row_anim.enabled = wm.gmjson_animation_enabled
             row_anim.prop(wm, "gmjson_animation_name", text="Animation Name")
@@ -919,6 +979,7 @@ class GMJSON_PT_panel(Panel):
 
             box.separator()
             box.prop(wm, "gmjson_emission", text="Emission")
+
             row_em = box.row()
             row_em.enabled = wm.gmjson_emission
             row_em.prop(wm, "gmjson_emission_texture", text="Emission Texture")
@@ -975,29 +1036,45 @@ classes = (
 )
 
 
-_TIMER_REGISTERED = False
+@persistent
+def gmjson_depsgraph_update(scene, depsgraph):
+    global _LAST_VIEWPORT_ACTIVE_OBJECT
 
-
-def _gmjson_viewport_timer():
     try:
         ctx = bpy.context
         wm = getattr(ctx, "window_manager", None)
-        if not wm:
-            return 0.35
 
-        if getattr(wm, "gmjson_viewport_auto_selection", False):
-            scene = getattr(ctx, "scene", None)
-            if scene and hasattr(scene, "gmjson_settings"):
-                sync_active_object_from_viewport(ctx)
+        if not wm:
+            return
+
+        if not getattr(wm, "gmjson_viewport_auto_selection", False):
+            return
+
+        view_layer = getattr(ctx, "view_layer", None)
+        if not view_layer:
+            return
+
+        active = view_layer.objects.active
+        active_name = active.name if active else ""
+
+        if active_name == _LAST_VIEWPORT_ACTIVE_OBJECT:
+            return
+
+        _LAST_VIEWPORT_ACTIVE_OBJECT = active_name
+
+        if not active or active.type != "MESH":
+            return
+
+        if not hasattr(ctx.scene, "gmjson_settings"):
+            return
+
+        sync_active_object_from_viewport(ctx)
+
     except Exception:
         pass
 
-    return 0.35
-
 
 def register():
-    global _TIMER_REGISTERED
-
     for c in classes:
         bpy.utils.register_class(c)
 
@@ -1015,6 +1092,7 @@ def register():
     bpy.types.WindowManager.gmjson_shadow_cw = BoolProperty(default=False, update=_proxy_update)
     bpy.types.WindowManager.gmjson_emission = BoolProperty(default=False, update=_on_emission_toggle)
     bpy.types.WindowManager.gmjson_emission_texture = StringProperty(default="", update=_proxy_update)
+
     bpy.types.WindowManager.gmjson_path_preset = EnumProperty(
         name="Path Preset",
         items=PATH_PRESET_ITEMS,
@@ -1040,16 +1118,13 @@ def register():
     except Exception:
         pass
 
-    if not _TIMER_REGISTERED:
-        try:
-            bpy.app.timers.register(_gmjson_viewport_timer, first_interval=0.35)
-            _TIMER_REGISTERED = True
-        except Exception:
-            pass
+    if gmjson_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(gmjson_depsgraph_update)
 
 
 def unregister():
-    global _TIMER_REGISTERED
+    if gmjson_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(gmjson_depsgraph_update)
 
     for c in reversed(classes):
         bpy.utils.unregister_class(c)
@@ -1074,8 +1149,6 @@ def unregister():
     del bpy.types.WindowManager.gmjson_batch_shadow_cw
     del bpy.types.WindowManager.gmjson_batch_emission
     del bpy.types.WindowManager.gmjson_viewport_auto_selection
-
-    _TIMER_REGISTERED = False
 
 
 if __name__ == "__main__":
