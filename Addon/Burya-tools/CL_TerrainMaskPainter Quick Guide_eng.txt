@@ -1,0 +1,113 @@
+Terrain RGB Mask Painter – Quick Guide
+
+General Concept
+---------------
+A single RGB mask controls 4 texture layers:
+
+Black (0,0,0) – Base layer (bottom)
+Red           – layer 1
+Green         – layer 2 (overrides Red)
+Blue          – layer 3 (overrides everything)
+
+Layers are blended automatically:
+- no muddy transitions
+- no base bleeding in overlaps
+- smooth blending
+
+--------------------------------------------------
+
+Model Setup
+-----------
+The object must have 2 UV channels:
+
+UV1 – for texture tiling
+UV2 – for the mask
+
+--------------------------------------------------
+
+Layer Setup
+-----------
+Each layer uses:
+
+- Albedo
+- Normal
+- RMA (R=Roughness, G=Metallic, B=AO)
+
+Layers:
+- Base
+- Red
+- Green
+- Blue
+
+--------------------------------------------------
+
+Creating the Mask
+-----------------
+1. Set name and resolution
+2. Click:
+   Create RGB Mask
+
+3. Assign it for painting:
+   Assign Mask For Paint
+
+--------------------------------------------------
+
+Painting
+--------
+Work in Texture Paint mode
+
+Buttons:
+
+Base – erase (black)
+R    – red layer
+G    – green layer
+B    – blue layer
+
+Important:
+The mask is just an RGB texture.
+Layer behavior is handled by the material, not the texture itself.
+
+--------------------------------------------------
+
+Tools
+-----
+Blur – smooths transitions
+
+Fill:
+Base / R / G / B – fills the entire mask with selected layer
+
+--------------------------------------------------
+
+Preview
+-------
+Material – final result
+Mask     – RGB mask
+R / G / B – individual channels
+
+--------------------------------------------------
+
+Export
+------
+Save Mask
+
+Saves the mask as a PNG for use in engine.
+
+--------------------------------------------------
+
+Engine Notes
+------------
+- Import mask as Non-Color (linear)
+- UV2 = mask
+- UV1 = texture tiling
+
+--------------------------------------------------
+
+Result
+------
+1 mask = 4 materials
+
+Benefits:
+- reduced memory usage
+- smaller build size
+- fast workflow
+- flexible blending
