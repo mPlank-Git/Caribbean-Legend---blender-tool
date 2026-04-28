@@ -13,7 +13,14 @@ bl_info = {
 # This add-on is licensed under the GNU General Public License v3.0 or later.
 # Этот аддон распространяется по лицензии GNU General Public License v3.0 или более поздней версии.
 import bpy
-from bpy.props import PointerProperty, IntProperty, EnumProperty, StringProperty, FloatProperty
+from bpy.props import (
+    PointerProperty,
+    IntProperty,
+    EnumProperty,
+    StringProperty,
+    FloatProperty,
+    BoolProperty,
+)
 from bpy.types import Operator, Panel, PropertyGroup
 from bpy_extras.io_utils import ExportHelper
 
@@ -109,6 +116,12 @@ class TerrainProps(PropertyGroup):
         default=1.0,
         min=0.0,
         max=1.0,
+    )
+
+    use_add_paint: BoolProperty(
+        name="Use ADD Paint",
+        description="Use ADD blend mode for R/G/B painting. Base always uses MIX / Использовать ADD-режим кисти для R/G/B. Base всегда использует MIX",
+        default=False,
     )
 
     active_paint: EnumProperty(
@@ -267,7 +280,13 @@ def value_to_color(nodes, links, value_socket, name, loc):
 
 
 def weighted_color(nodes, links, color_socket, weight_socket, name, loc):
-    w_color = value_to_color(nodes, links, weight_socket, f"{name}_WeightColor", (loc[0] - 220, loc[1] - 80))
+    w_color = value_to_color(
+        nodes,
+        links,
+        weight_socket,
+        f"{name}_WeightColor",
+        (loc[0] - 220, loc[1] - 80),
+    )
 
     n = nodes.new("ShaderNodeMixRGB")
     n.name = name
@@ -451,7 +470,12 @@ def build_material(context):
     albedo_final = build_weighted_sum(
         nodes,
         links,
-        [albedos[0].outputs["Color"], albedos[1].outputs["Color"], albedos[2].outputs["Color"], albedos[3].outputs["Color"]],
+        [
+            albedos[0].outputs["Color"],
+            albedos[1].outputs["Color"],
+            albedos[2].outputs["Color"],
+            albedos[3].outputs["Color"],
+        ],
         weights,
         "TRGB_Albedo",
         (500, 1300),
@@ -460,7 +484,12 @@ def build_material(context):
     normal_final_color = build_weighted_sum(
         nodes,
         links,
-        [normals[0].outputs["Color"], normals[1].outputs["Color"], normals[2].outputs["Color"], normals[3].outputs["Color"]],
+        [
+            normals[0].outputs["Color"],
+            normals[1].outputs["Color"],
+            normals[2].outputs["Color"],
+            normals[3].outputs["Color"],
+        ],
         weights,
         "TRGB_Normal",
         (500, 300),
@@ -469,7 +498,12 @@ def build_material(context):
     rma_final_color = build_weighted_sum(
         nodes,
         links,
-        [rmas[0].outputs["Color"], rmas[1].outputs["Color"], rmas[2].outputs["Color"], rmas[3].outputs["Color"]],
+        [
+            rmas[0].outputs["Color"],
+            rmas[1].outputs["Color"],
+            rmas[2].outputs["Color"],
+            rmas[3].outputs["Color"],
+        ],
         weights,
         "TRGB_RMA",
         (500, -700),
@@ -605,11 +639,11 @@ class TERRAIN_OT_assign_mask(Operator):
 class TERRAIN_OT_set_paint(Operator):
     bl_idname = "terrain_rgb.set_paint"
     bl_label = "Set Paint Color"
-    bl_description = "Switch brush color for painting Base, Red, Green or Blue / Переключает цвет кисти для покраски Base, Red, Green или Blue"
+    bl_description = "Switch brush color and blend mode for painting Base, Red, Green or Blue / Переключает цвет и режим кисти для покраски Base, Red, Green или Blue"
 
     mode: EnumProperty(
         items=[
-            ("BASE", "Base", "Paint black to erase to Base / Чёрный возвращает базовый слой"),
+            ("BASE", "Base", "Paint black to erase to Base. Always uses MIX / Чёрный возвращает базовый слой. Всегда использует MIX"),
             ("RED", "Red", "Paint Red layer / Красит красный слой"),
             ("GREEN", "Green", "Paint Green layer / Красит зелёный слой"),
             ("BLUE", "Blue", "Paint Blue layer / Красит синий слой"),
@@ -626,12 +660,19 @@ class TERRAIN_OT_set_paint(Operator):
 
             if self.mode == "BASE":
                 paint.brush.color = (0.0, 0.0, 0.0)
+                paint.brush.blend = "MIX"
+
             elif self.mode == "RED":
                 paint.brush.color = (1.0, 0.0, 0.0)
+                paint.brush.blend = "ADD" if props.use_add_paint else "MIX"
+
             elif self.mode == "GREEN":
                 paint.brush.color = (0.0, 1.0, 0.0)
+                paint.brush.blend = "ADD" if props.use_add_paint else "MIX"
+
             elif self.mode == "BLUE":
                 paint.brush.color = (0.0, 0.0, 1.0)
+                paint.brush.blend = "ADD" if props.use_add_paint else "MIX"
 
         self.report({"INFO"}, f"Paint mode: {self.mode}")
         return {"FINISHED"}
@@ -783,6 +824,7 @@ class VIEW3D_PT_terrain_rgb_mask(Panel):
         layout.separator()
         layout.label(text="Paint")
         layout.prop(props, "brush_strength")
+        layout.prop(props, "use_add_paint")
 
         row = layout.row(align=True)
         op = row.operator("terrain_rgb.set_paint", text="Base")
