@@ -385,6 +385,8 @@ def build_material(context):
     bsdf = nodes.new("ShaderNodeBsdfPrincipled")
     bsdf.name = "TRGB_BSDF"
     bsdf.location = (3500, 0)
+    
+    bsdf.inputs["Specular"].default_value = 0.1
 
     uv1 = nodes.new("ShaderNodeUVMap")
     uv1.name = "TRGB_UV1"
