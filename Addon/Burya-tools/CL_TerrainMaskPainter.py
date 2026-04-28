@@ -27,7 +27,7 @@ def get_active_object(context):
 
 def ensure_material(obj):
     if obj.active_material is None:
-        mat = bpy.data.materials.new("CL_Terrain_RGB_Mask")
+        mat = bpy.data.materials.new("Terrain_RGB_Mask_Material")
         mat.use_nodes = True
         obj.data.materials.append(mat)
         obj.active_material = mat
@@ -77,7 +77,7 @@ class TerrainProps(PropertyGroup):
 
     mask: PointerProperty(
         name="RGB Mask",
-        description="RGB mask texture. Black means Base layer; Red, Green and Blue paint additional layers / RGB-маска. Чёрный — базовый слой; красный, зелёный и синий — дополнительные слои",
+        description="RGB mask texture. Black is Base; R/G/B are layered overlays / RGB-маска. Чёрный — база; R/G/B — накладываемые слои",
         type=bpy.types.Image,
     )
 
@@ -97,7 +97,7 @@ class TerrainProps(PropertyGroup):
 
     tile_scale: FloatProperty(
         name="Tile Scale",
-        description="Tiling scale for all terrain layer textures using UV1 / Масштаб тайлинга текстур слоёв по UV1",
+        description="Tiling scale for all terrain textures using UV1 / Масштаб тайлинга текстур по UV1",
         default=4.0,
         min=0.001,
         max=1000.0,
@@ -105,7 +105,7 @@ class TerrainProps(PropertyGroup):
 
     brush_strength: FloatProperty(
         name="Brush Strength",
-        description="Brush strength for Texture Paint mode / Сила кисти для режима Texture Paint",
+        description="Brush strength for Texture Paint mode / Сила кисти для Texture Paint",
         default=1.0,
         min=0.0,
         max=1.0,
@@ -113,21 +113,21 @@ class TerrainProps(PropertyGroup):
 
     active_paint: EnumProperty(
         name="Paint",
-        description="Currently selected paint color/layer / Текущий выбранный слой покраски",
+        description="Currently selected paint layer / Текущий слой покраски",
         items=[
-            ("BASE", "Base / Erase", "Paint black to return to the Base layer / Красит чёрным, возвращая базовый слой"),
-            ("RED", "Red Layer", "Paint the Red terrain layer / Красит красный слой"),
-            ("GREEN", "Green Layer", "Paint the Green terrain layer / Красит зелёный слой"),
-            ("BLUE", "Blue Layer", "Paint the Blue terrain layer / Красит синий слой"),
+            ("BASE", "Base / Erase", "Paint black to return to Base layer / Чёрный возвращает базовый слой"),
+            ("RED", "Red Layer", "Paint Red layer / Красит красный слой"),
+            ("GREEN", "Green Layer", "Paint Green layer / Красит зелёный слой"),
+            ("BLUE", "Blue Layer", "Paint Blue layer / Красит синий слой"),
         ],
         default="RED",
     )
 
     preview_mode: EnumProperty(
         name="Preview",
-        description="Viewport preview mode / Режим предпросмотра во вьюпорте",
+        description="Viewport preview mode / Режим предпросмотра",
         items=[
-            ("MATERIAL", "Material", "Show final blended material / Показать итоговый смешанный материал"),
+            ("MATERIAL", "Material", "Show final material / Показать итоговый материал"),
             ("MASK", "Mask RGB", "Show raw RGB mask / Показать RGB-маску"),
             ("R", "Red Channel", "Show only red channel / Показать только красный канал"),
             ("G", "Green Channel", "Show only green channel / Показать только зелёный канал"),
@@ -161,53 +161,6 @@ def create_mask_image(props):
     set_non_color(img)
     props.mask = img
     return img
-
-
-def process_pixels(img, func):
-    pixels = list(img.pixels)
-
-    for i in range(0, len(pixels), 4):
-        r = pixels[i]
-        g = pixels[i + 1]
-        b = pixels[i + 2]
-
-        r, g, b = func(r, g, b)
-
-        pixels[i] = max(0.0, min(1.0, r))
-        pixels[i + 1] = max(0.0, min(1.0, g))
-        pixels[i + 2] = max(0.0, min(1.0, b))
-        pixels[i + 3] = 1.0
-
-    img.pixels[:] = pixels
-    img.update()
-
-
-def normalize_rgb_mask(img):
-    def fn(r, g, b):
-        s = r + g + b
-        if s > 1.0:
-            r /= s
-            g /= s
-            b /= s
-        return r, g, b
-
-    process_pixels(img, fn)
-
-
-def suppress_others(img, active):
-    def fn(r, g, b):
-        if active == "RED":
-            g *= 1.0 - r
-            b *= 1.0 - r
-        elif active == "GREEN":
-            r *= 1.0 - g
-            b *= 1.0 - g
-        elif active == "BLUE":
-            r *= 1.0 - b
-            g *= 1.0 - b
-        return r, g, b
-
-    process_pixels(img, fn)
 
 
 def fill_mask(img, mode):
@@ -266,6 +219,129 @@ def blur_rgb_mask(img):
     img.update()
 
 
+def new_math(nodes, name, operation, loc):
+    n = nodes.new("ShaderNodeMath")
+    n.name = name
+    n.operation = operation
+    n.location = loc
+    return n
+
+
+def subtract_from_one(nodes, links, value_socket, name, loc):
+    n = new_math(nodes, name, "SUBTRACT", loc)
+    n.inputs[0].default_value = 1.0
+    links.new(value_socket, n.inputs[1])
+    return n.outputs["Value"]
+
+
+def multiply_values(nodes, links, a, b, name, loc):
+    n = new_math(nodes, name, "MULTIPLY", loc)
+    links.new(a, n.inputs[0])
+    links.new(b, n.inputs[1])
+    return n.outputs["Value"]
+
+
+def add_values(nodes, links, a, b, name, loc):
+    n = new_math(nodes, name, "ADD", loc)
+    links.new(a, n.inputs[0])
+    links.new(b, n.inputs[1])
+    return n.outputs["Value"]
+
+
+def divide_values(nodes, links, a, b, name, loc):
+    n = new_math(nodes, name, "DIVIDE", loc)
+    links.new(a, n.inputs[0])
+    links.new(b, n.inputs[1])
+    return n.outputs["Value"]
+
+
+def value_to_color(nodes, links, value_socket, name, loc):
+    n = nodes.new("ShaderNodeCombineColor")
+    n.name = name
+    n.mode = "RGB"
+    n.location = loc
+    links.new(value_socket, n.inputs["Red"])
+    links.new(value_socket, n.inputs["Green"])
+    links.new(value_socket, n.inputs["Blue"])
+    return n.outputs["Color"]
+
+
+def weighted_color(nodes, links, color_socket, weight_socket, name, loc):
+    w_color = value_to_color(nodes, links, weight_socket, f"{name}_WeightColor", (loc[0] - 220, loc[1] - 80))
+
+    n = nodes.new("ShaderNodeMixRGB")
+    n.name = name
+    n.blend_type = "MULTIPLY"
+    n.inputs["Fac"].default_value = 1.0
+    n.location = loc
+
+    links.new(color_socket, n.inputs["Color1"])
+    links.new(w_color, n.inputs["Color2"])
+    return n.outputs["Color"]
+
+
+def add_color(nodes, links, a, b, name, loc):
+    n = nodes.new("ShaderNodeMixRGB")
+    n.name = name
+    n.blend_type = "ADD"
+    n.inputs["Fac"].default_value = 1.0
+    n.location = loc
+
+    links.new(a, n.inputs["Color1"])
+    links.new(b, n.inputs["Color2"])
+    return n.outputs["Color"]
+
+
+def build_layered_weights(nodes, links, r, g, b):
+    overlay_rg = add_values(nodes, links, r, g, "TRGB_Overlay_RG", (-1450, -50))
+    overlay_rgb = add_values(nodes, links, overlay_rg, b, "TRGB_Overlay_RGB", (-1250, -50))
+
+    overlay = new_math(nodes, "TRGB_Overlay_Clamp", "MINIMUM", (-1050, -50))
+    links.new(overlay_rgb, overlay.inputs[0])
+    overlay.inputs[1].default_value = 1.0
+
+    inv_g = subtract_from_one(nodes, links, g, "TRGB_OneMinus_G", (-1450, -230))
+    inv_b = subtract_from_one(nodes, links, b, "TRGB_OneMinus_B", (-1450, -400))
+
+    raw_r_a = multiply_values(nodes, links, r, inv_g, "TRGB_RawR_A", (-1250, -230))
+    raw_r = multiply_values(nodes, links, raw_r_a, inv_b, "TRGB_RawR", (-1050, -230))
+
+    raw_g = multiply_values(nodes, links, g, inv_b, "TRGB_RawG", (-1050, -400))
+    raw_b = b
+
+    raw_rg = add_values(nodes, links, raw_r, raw_g, "TRGB_Raw_RG", (-850, -300))
+    raw_rgb = add_values(nodes, links, raw_rg, raw_b, "TRGB_Raw_RGB", (-650, -300))
+
+    raw_sum = new_math(nodes, "TRGB_RawSum_Safe", "MAXIMUM", (-450, -300))
+    links.new(raw_rgb, raw_sum.inputs[0])
+    raw_sum.inputs[1].default_value = 0.000001
+
+    w_base = subtract_from_one(nodes, links, overlay.outputs["Value"], "TRGB_W_Base", (-850, 80))
+
+    r_div = divide_values(nodes, links, raw_r, raw_sum.outputs["Value"], "TRGB_R_Div", (-250, -180))
+    g_div = divide_values(nodes, links, raw_g, raw_sum.outputs["Value"], "TRGB_G_Div", (-250, -350))
+    b_div = divide_values(nodes, links, raw_b, raw_sum.outputs["Value"], "TRGB_B_Div", (-250, -520))
+
+    w_r = multiply_values(nodes, links, r_div, overlay.outputs["Value"], "TRGB_W_R", (0, -180))
+    w_g = multiply_values(nodes, links, g_div, overlay.outputs["Value"], "TRGB_W_G", (0, -350))
+    w_b = multiply_values(nodes, links, b_div, overlay.outputs["Value"], "TRGB_W_B", (0, -520))
+
+    return w_base, w_r, w_g, w_b
+
+
+def build_weighted_sum(nodes, links, sockets, weights, name, loc):
+    c0 = weighted_color(nodes, links, sockets[0], weights[0], f"{name}_Base", (loc[0], loc[1]))
+    c1 = weighted_color(nodes, links, sockets[1], weights[1], f"{name}_R", (loc[0], loc[1] - 220))
+    c2 = weighted_color(nodes, links, sockets[2], weights[2], f"{name}_G", (loc[0], loc[1] - 440))
+    c3 = weighted_color(nodes, links, sockets[3], weights[3], f"{name}_B", (loc[0], loc[1] - 660))
+
+    a0 = add_color(nodes, links, c0, c1, f"{name}_Add_01", (loc[0] + 320, loc[1] - 120))
+    a1 = add_color(nodes, links, a0, c2, f"{name}_Add_012", (loc[0] + 640, loc[1] - 260))
+    a2 = add_color(nodes, links, a1, c3, f"{name}_Add_0123", (loc[0] + 960, loc[1] - 400))
+
+    return a2
+
+
 def build_material(context):
     obj = get_active_object(context)
     if obj is None:
@@ -285,25 +361,25 @@ def build_material(context):
     uv2_name = obj.data.uv_layers[1].name
 
     out = nodes.new("ShaderNodeOutputMaterial")
-    out.location = (2600, 0)
+    out.location = (3800, 0)
 
     bsdf = nodes.new("ShaderNodeBsdfPrincipled")
     bsdf.name = "TRGB_BSDF"
-    bsdf.location = (2300, 0)
+    bsdf.location = (3500, 0)
 
     uv1 = nodes.new("ShaderNodeUVMap")
     uv1.name = "TRGB_UV1"
     uv1.uv_map = uv1_name
-    uv1.location = (-2200, 700)
+    uv1.location = (-2600, 800)
 
     uv2 = nodes.new("ShaderNodeUVMap")
     uv2.name = "TRGB_UV2"
     uv2.uv_map = uv2_name
-    uv2.location = (-2200, 100)
+    uv2.location = (-2600, 200)
 
     mapping = nodes.new("ShaderNodeMapping")
     mapping.name = "TRGB_Tile_Mapping"
-    mapping.location = (-1950, 700)
+    mapping.location = (-2350, 800)
     mapping.inputs["Scale"].default_value[0] = props.tile_scale
     mapping.inputs["Scale"].default_value[1] = props.tile_scale
     mapping.inputs["Scale"].default_value[2] = 1.0
@@ -313,15 +389,23 @@ def build_material(context):
     mask.name = "TRGB_Mask"
     mask.label = "RGB Mask"
     mask.image = props.mask
-    mask.location = (-1950, 100)
+    mask.location = (-2350, 200)
     set_non_color(props.mask)
     links.new(uv2.outputs["UV"], mask.inputs["Vector"])
 
     sep = nodes.new("ShaderNodeSeparateColor")
     sep.name = "TRGB_Separate_Mask"
     sep.mode = "RGB"
-    sep.location = (-1700, 100)
+    sep.location = (-2100, 200)
     links.new(mask.outputs["Color"], sep.inputs["Color"])
+
+    weights = build_layered_weights(
+        nodes,
+        links,
+        sep.outputs["Red"],
+        sep.outputs["Green"],
+        sep.outputs["Blue"],
+    )
 
     layers = [
         ("Base", props.base),
@@ -332,15 +416,15 @@ def build_material(context):
 
     albedos = []
     normals = []
-    sep_rmas = []
+    rmas = []
 
-    y = 1200
+    y = 1500
     for name, layer in layers:
         alb = nodes.new("ShaderNodeTexImage")
         alb.name = f"TRGB_{name}_Albedo"
         alb.label = f"{name} Albedo"
         alb.image = layer.albedo
-        alb.location = (-1450, y)
+        alb.location = (-1800, y)
         links.new(mapping.outputs["Vector"], alb.inputs["Vector"])
         albedos.append(alb)
 
@@ -348,7 +432,7 @@ def build_material(context):
         nrm.name = f"TRGB_{name}_Normal"
         nrm.label = f"{name} Normal"
         nrm.image = layer.normal
-        nrm.location = (-1450, y - 160)
+        nrm.location = (-1800, y - 160)
         links.new(mapping.outputs["Vector"], nrm.inputs["Vector"])
         set_non_color(layer.normal)
         normals.append(nrm)
@@ -357,159 +441,69 @@ def build_material(context):
         rma.name = f"TRGB_{name}_RMA"
         rma.label = f"{name} RMA"
         rma.image = layer.rma
-        rma.location = (-1450, y - 320)
+        rma.location = (-1800, y - 320)
         links.new(mapping.outputs["Vector"], rma.inputs["Vector"])
         set_non_color(layer.rma)
+        rmas.append(rma)
 
-        srma = nodes.new("ShaderNodeSeparateColor")
-        srma.name = f"TRGB_{name}_Separate_RMA"
-        srma.mode = "RGB"
-        srma.location = (-1200, y - 320)
-        links.new(rma.outputs["Color"], srma.inputs["Color"])
-        sep_rmas.append(srma)
+        y -= 520
 
-        y -= 480
-
-    def mix_rgb(name, a, b, fac, loc):
-        m = nodes.new("ShaderNodeMixRGB")
-        m.name = name
-        m.blend_type = "MIX"
-        m.location = loc
-        links.new(a, m.inputs["Color1"])
-        links.new(b, m.inputs["Color2"])
-        links.new(fac, m.inputs["Fac"])
-        return m
-
-    alb_r = mix_rgb(
-        "TRGB_Albedo_Mix_R",
-        albedos[0].outputs["Color"],
-        albedos[1].outputs["Color"],
-        sep.outputs["Red"],
-        (-700, 900),
+    albedo_final = build_weighted_sum(
+        nodes,
+        links,
+        [albedos[0].outputs["Color"], albedos[1].outputs["Color"], albedos[2].outputs["Color"], albedos[3].outputs["Color"]],
+        weights,
+        "TRGB_Albedo",
+        (500, 1300),
     )
 
-    alb_g = mix_rgb(
-        "TRGB_Albedo_Mix_G",
-        alb_r.outputs["Color"],
-        albedos[2].outputs["Color"],
-        sep.outputs["Green"],
-        (-450, 750),
+    normal_final_color = build_weighted_sum(
+        nodes,
+        links,
+        [normals[0].outputs["Color"], normals[1].outputs["Color"], normals[2].outputs["Color"], normals[3].outputs["Color"]],
+        weights,
+        "TRGB_Normal",
+        (500, 300),
     )
 
-    alb_b = mix_rgb(
-        "TRGB_Albedo_Mix_B",
-        alb_g.outputs["Color"],
-        albedos[3].outputs["Color"],
-        sep.outputs["Blue"],
-        (-200, 600),
-    )
-
-    nrm_r = mix_rgb(
-        "TRGB_Normal_Mix_R",
-        normals[0].outputs["Color"],
-        normals[1].outputs["Color"],
-        sep.outputs["Red"],
-        (-700, 250),
-    )
-
-    nrm_g = mix_rgb(
-        "TRGB_Normal_Mix_G",
-        nrm_r.outputs["Color"],
-        normals[2].outputs["Color"],
-        sep.outputs["Green"],
-        (-450, 100),
-    )
-
-    nrm_b = mix_rgb(
-        "TRGB_Normal_Mix_B",
-        nrm_g.outputs["Color"],
-        normals[3].outputs["Color"],
-        sep.outputs["Blue"],
-        (-200, -50),
+    rma_final_color = build_weighted_sum(
+        nodes,
+        links,
+        [rmas[0].outputs["Color"], rmas[1].outputs["Color"], rmas[2].outputs["Color"], rmas[3].outputs["Color"]],
+        weights,
+        "TRGB_RMA",
+        (500, -700),
     )
 
     normal_map = nodes.new("ShaderNodeNormalMap")
     normal_map.name = "TRGB_Final_Normal"
-    normal_map.location = (300, -50)
-    links.new(nrm_b.outputs["Color"], normal_map.inputs["Color"])
+    normal_map.location = (2500, 100)
+    links.new(normal_final_color, normal_map.inputs["Color"])
 
-    def mix_value(name, a, b, fac, loc):
-        mix = nodes.new("ShaderNodeMix")
-        mix.name = name
-        mix.data_type = "FLOAT"
-        mix.factor_mode = "UNIFORM"
-        mix.location = loc
-        links.new(fac, mix.inputs["Factor"])
-        links.new(a, mix.inputs[6])
-        links.new(b, mix.inputs[7])
-        return mix
-
-    rough_r = mix_value(
-        "TRGB_Rough_R",
-        sep_rmas[0].outputs["Red"],
-        sep_rmas[1].outputs["Red"],
-        sep.outputs["Red"],
-        (-700, -500),
-    )
-
-    rough_g = mix_value(
-        "TRGB_Rough_G",
-        rough_r.outputs[0],
-        sep_rmas[2].outputs["Red"],
-        sep.outputs["Green"],
-        (-350, -500),
-    )
-
-    rough_b = mix_value(
-        "TRGB_Rough_B",
-        rough_g.outputs[0],
-        sep_rmas[3].outputs["Red"],
-        sep.outputs["Blue"],
-        (0, -500),
-    )
-
-    metal_r = mix_value(
-        "TRGB_Metal_R",
-        sep_rmas[0].outputs["Green"],
-        sep_rmas[1].outputs["Green"],
-        sep.outputs["Red"],
-        (-700, -800),
-    )
-
-    metal_g = mix_value(
-        "TRGB_Metal_G",
-        metal_r.outputs[0],
-        sep_rmas[2].outputs["Green"],
-        sep.outputs["Green"],
-        (-350, -800),
-    )
-
-    metal_b = mix_value(
-        "TRGB_Metal_B",
-        metal_g.outputs[0],
-        sep_rmas[3].outputs["Green"],
-        sep.outputs["Blue"],
-        (0, -800),
-    )
+    final_rma = nodes.new("ShaderNodeSeparateColor")
+    final_rma.name = "TRGB_Final_RMA"
+    final_rma.mode = "RGB"
+    final_rma.location = (2500, -650)
+    links.new(rma_final_color, final_rma.inputs["Color"])
 
     preview = nodes.new("ShaderNodeMixRGB")
     preview.name = "TRGB_Preview_Switch"
     preview.blend_type = "MIX"
     preview.inputs["Fac"].default_value = 0.0
-    preview.location = (1700, 400)
+    preview.location = (3000, 450)
 
     combine = nodes.new("ShaderNodeCombineColor")
     combine.name = "TRGB_Preview_Combine"
     combine.mode = "RGB"
-    combine.location = (1400, 100)
+    combine.location = (2700, 250)
 
-    links.new(alb_b.outputs["Color"], preview.inputs["Color1"])
+    links.new(albedo_final, preview.inputs["Color1"])
     links.new(mask.outputs["Color"], preview.inputs["Color2"])
 
     links.new(preview.outputs["Color"], bsdf.inputs["Base Color"])
     links.new(normal_map.outputs["Normal"], bsdf.inputs["Normal"])
-    links.new(rough_b.outputs[0], bsdf.inputs["Roughness"])
-    links.new(metal_b.outputs[0], bsdf.inputs["Metallic"])
+    links.new(final_rma.outputs["Red"], bsdf.inputs["Roughness"])
+    links.new(final_rma.outputs["Green"], bsdf.inputs["Metallic"])
     links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
 
     apply_preview(mat, props.preview_mode)
@@ -525,7 +519,7 @@ def apply_preview(mat, mode):
     mask = nodes.get("TRGB_Mask")
     sep = nodes.get("TRGB_Separate_Mask")
     combine = nodes.get("TRGB_Preview_Combine")
-    albedo = nodes.get("TRGB_Albedo_Mix_B")
+    albedo = nodes.get("TRGB_Albedo_Add_0123")
 
     if not preview:
         return
@@ -564,8 +558,7 @@ class TERRAIN_OT_create_mask(Operator):
     bl_description = "Create a new black RGB mask texture. Black means Base layer / Создаёт новую чёрную RGB-маску. Чёрный цвет означает базовый слой"
 
     def execute(self, context):
-        props = context.scene.terrain_rgb_mask_props
-        create_mask_image(props)
+        create_mask_image(context.scene.terrain_rgb_mask_props)
         self.report({"INFO"}, "RGB mask created")
         return {"FINISHED"}
 
@@ -573,7 +566,7 @@ class TERRAIN_OT_create_mask(Operator):
 class TERRAIN_OT_build_material(Operator):
     bl_idname = "terrain_rgb.build_material"
     bl_label = "Build / Update Material"
-    bl_description = "Build or update the preview material using Base + Red + Green + Blue layers / Собирает или обновляет материал предпросмотра из базового, красного, зелёного и синего слоёв"
+    bl_description = "Build material preview using layered overlay formula / Собирает предпросмотр по формуле слоёв без просвечивания базы в overlap-зонах"
 
     def execute(self, context):
         ok, msg = build_material(context)
@@ -587,7 +580,7 @@ class TERRAIN_OT_build_material(Operator):
 class TERRAIN_OT_assign_mask(Operator):
     bl_idname = "terrain_rgb.assign_mask"
     bl_label = "Assign Mask For Paint"
-    bl_description = "Set the RGB mask as the active Texture Paint target / Назначает RGB-маску активной текстурой для рисования в Texture Paint"
+    bl_description = "Set RGB mask as active Texture Paint target / Назначает RGB-маску активной текстурой для рисования"
 
     def execute(self, context):
         obj = get_active_object(context)
@@ -612,11 +605,11 @@ class TERRAIN_OT_assign_mask(Operator):
 class TERRAIN_OT_set_paint(Operator):
     bl_idname = "terrain_rgb.set_paint"
     bl_label = "Set Paint Color"
-    bl_description = "Switch brush color for painting Base, Red, Green or Blue mask layer / Переключает цвет кисти для покраски базового, красного, зелёного или синего слоя"
+    bl_description = "Switch brush color for painting Base, Red, Green or Blue / Переключает цвет кисти для покраски Base, Red, Green или Blue"
 
     mode: EnumProperty(
         items=[
-            ("BASE", "Base", "Paint black to erase to Base layer / Красит чёрным, возвращая базовый слой"),
+            ("BASE", "Base", "Paint black to erase to Base / Чёрный возвращает базовый слой"),
             ("RED", "Red", "Paint Red layer / Красит красный слой"),
             ("GREEN", "Green", "Paint Green layer / Красит зелёный слой"),
             ("BLUE", "Blue", "Paint Blue layer / Красит синий слой"),
@@ -647,15 +640,15 @@ class TERRAIN_OT_set_paint(Operator):
 class TERRAIN_OT_set_preview(Operator):
     bl_idname = "terrain_rgb.set_preview"
     bl_label = "Set Preview"
-    bl_description = "Switch viewport preview between final material, full mask, or single RGB channel / Переключает предпросмотр между итоговым материалом, полной маской или отдельным RGB-каналом"
+    bl_description = "Switch preview mode / Переключает режим предпросмотра"
 
     mode: EnumProperty(
         items=[
-            ("MATERIAL", "Material", "Show final blended material / Показать итоговый смешанный материал"),
-            ("MASK", "Mask", "Show raw RGB mask / Показать RGB-маску"),
-            ("R", "R", "Show red channel only / Показать только красный канал"),
-            ("G", "G", "Show green channel only / Показать только зелёный канал"),
-            ("B", "B", "Show blue channel only / Показать только синий канал"),
+            ("MATERIAL", "Material", "Show final material / Показать итоговый материал"),
+            ("MASK", "Mask", "Show RGB mask / Показать RGB-маску"),
+            ("R", "R", "Show red channel / Показать красный канал"),
+            ("G", "G", "Show green channel / Показать зелёный канал"),
+            ("B", "B", "Show blue channel / Показать синий канал"),
         ]
     )
 
@@ -670,50 +663,10 @@ class TERRAIN_OT_set_preview(Operator):
         return {"FINISHED"}
 
 
-class TERRAIN_OT_normalize_mask(Operator):
-    bl_idname = "terrain_rgb.normalize_mask"
-    bl_label = "Normalize RGB Mask"
-    bl_description = "Normalize RGB channels so their sum does not exceed 1. Reduces dirty overblending / Нормализует RGB-каналы, чтобы их сумма не превышала 1. Убирает грязное пересмешивание"
-
-    def execute(self, context):
-        img = context.scene.terrain_rgb_mask_props.mask
-        if img is None:
-            self.report({"ERROR"}, "No mask image")
-            return {"CANCELLED"}
-
-        normalize_rgb_mask(img)
-        self.report({"INFO"}, "RGB mask normalized")
-        return {"FINISHED"}
-
-
-class TERRAIN_OT_suppress_others(Operator):
-    bl_idname = "terrain_rgb.suppress_others"
-    bl_label = "Paint One / Suppress Others"
-    bl_description = "Make the active painted layer suppress the other RGB channels / Активный слой подавляет остальные RGB-каналы, делая покраску чище"
-
-    def execute(self, context):
-        props = context.scene.terrain_rgb_mask_props
-        img = props.mask
-
-        if img is None:
-            self.report({"ERROR"}, "No mask image")
-            return {"CANCELLED"}
-
-        if props.active_paint == "BASE":
-            self.report({"WARNING"}, "Base mode does not suppress channels")
-            return {"CANCELLED"}
-
-        suppress_others(img, props.active_paint)
-        normalize_rgb_mask(img)
-
-        self.report({"INFO"}, "Other channels suppressed")
-        return {"FINISHED"}
-
-
 class TERRAIN_OT_blur_mask(Operator):
     bl_idname = "terrain_rgb.blur_mask"
     bl_label = "Blur RGB Mask"
-    bl_description = "Blur the RGB mask with a simple 3x3 filter and normalize it after blur / Размывает RGB-маску простым фильтром 3x3 и нормализует её после размытия"
+    bl_description = "Blur RGB mask with simple 3x3 filter / Размывает RGB-маску простым фильтром 3x3"
 
     def execute(self, context):
         img = context.scene.terrain_rgb_mask_props.mask
@@ -722,8 +675,6 @@ class TERRAIN_OT_blur_mask(Operator):
             return {"CANCELLED"}
 
         blur_rgb_mask(img)
-        normalize_rgb_mask(img)
-
         self.report({"INFO"}, "RGB mask blurred")
         return {"FINISHED"}
 
@@ -731,14 +682,14 @@ class TERRAIN_OT_blur_mask(Operator):
 class TERRAIN_OT_fill_mask(Operator):
     bl_idname = "terrain_rgb.fill_mask"
     bl_label = "Fill Mask"
-    bl_description = "Fill the whole RGB mask with Base, Red, Green or Blue / Полностью заливает RGB-маску базовым, красным, зелёным или синим слоем"
+    bl_description = "Fill whole RGB mask with selected layer / Заливает всю RGB-маску выбранным слоем"
 
     mode: EnumProperty(
         items=[
-            ("BASE", "Base", "Fill mask with black Base layer / Залить маску чёрным базовым слоем"),
-            ("RED", "Red", "Fill mask with Red layer / Залить маску красным слоем"),
-            ("GREEN", "Green", "Fill mask with Green layer / Залить маску зелёным слоем"),
-            ("BLUE", "Blue", "Fill mask with Blue layer / Залить маску синим слоем"),
+            ("BASE", "Base", "Fill with black Base / Залить базой"),
+            ("RED", "Red", "Fill with Red / Залить красным"),
+            ("GREEN", "Green", "Fill with Green / Залить зелёным"),
+            ("BLUE", "Blue", "Fill with Blue / Залить синим"),
         ]
     )
 
@@ -756,7 +707,7 @@ class TERRAIN_OT_fill_mask(Operator):
 class TERRAIN_OT_save_mask(Operator, ExportHelper):
     bl_idname = "terrain_rgb.save_mask"
     bl_label = "Save RGB Mask"
-    bl_description = "Save the current RGB mask texture as PNG / Сохраняет текущую RGB-маску в PNG"
+    bl_description = "Save current RGB mask as PNG / Сохраняет текущую RGB-маску в PNG"
 
     filename_ext = ".png"
     filter_glob: StringProperty(default="*.png", options={"HIDDEN"})
@@ -846,16 +797,12 @@ class VIEW3D_PT_terrain_rgb_mask(Panel):
         layout.prop(props, "active_paint", text="Active")
 
         layout.separator()
-        layout.label(text="Mask Tools / Инструменты маски")
-
-        row = layout.row(align=True)
-        row.operator("terrain_rgb.normalize_mask", text="Normalize")
-        row.operator("terrain_rgb.suppress_others", text="Paint One")
+        layout.label(text="Mask Tools")
 
         row = layout.row(align=True)
         row.operator("terrain_rgb.blur_mask", text="Blur")
 
-        layout.label(text="Fill / Заливка")
+        layout.label(text="Fill")
         row = layout.row(align=True)
         op = row.operator("terrain_rgb.fill_mask", text="Base")
         op.mode = "BASE"
@@ -900,8 +847,6 @@ classes = (
     TERRAIN_OT_assign_mask,
     TERRAIN_OT_set_paint,
     TERRAIN_OT_set_preview,
-    TERRAIN_OT_normalize_mask,
-    TERRAIN_OT_suppress_others,
     TERRAIN_OT_blur_mask,
     TERRAIN_OT_fill_mask,
     TERRAIN_OT_save_mask,
