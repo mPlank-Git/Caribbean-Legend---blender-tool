@@ -1,8 +1,8 @@
 bl_info = {
-"license": "GPL-3.0-or-later",
+    "license": "GPL-3.0-or-later",
     "name": "CL_GM JSON Export",
     "author": "mPlank",
-    "version": (1, 4, 0),
+    "version": (1, 4, 1),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > GM JSON",
     "description": "Per-collection JSON with mesh object properties for Caribbean Legend GM pipeline",
@@ -12,6 +12,7 @@ bl_info = {
 #
 # This add-on is licensed under the GNU General Public License v3.0 or later.
 # Этот аддон распространяется по лицензии GNU General Public License v3.0 или более поздней версии.
+
 import bpy
 from bpy.props import (
     BoolProperty,
@@ -43,6 +44,13 @@ PATH_PRESETS = {
     "Props": "Resource\\Textures\\Props\\",
     "Location": "Resource\\Textures\\Location\\",
     "Vegetation": "Resource\\Textures\\Vegetation\\",
+    "ShipOther": "Resource\\Textures\\Ships\\Other\\",
+    "1ShipsTexture": "Resource\\Textures\\Ships\\1ShipsTextures\\",
+    "Characters": "Resource\\Textures\\Characters\\",
+    "WorldMap": "Resource\\Textures\\WorldMap\\geometry\\",
+    "Ammo": "Resource\\Textures\\Ammo\\",
+    "Items": "Resource\\Textures\\Items\\",
+    "Grass": "Resource\\Textures\\Grass\\",
 }
 
 
@@ -53,6 +61,12 @@ PATH_PRESET_ITEMS = [
     ("Props", "Props", "Resource\\Textures\\Props\\"),
     ("Location", "Location", "Resource\\Textures\\Location\\"),
     ("Vegetation", "Vegetation", "Resource\\Textures\\Vegetation\\"),
+    ("ShipOther", "ShipOther", "Resource\\Textures\\Ships\\Other\\"),
+    ("Characters", "Characters", "Resource\\Textures\\Characters\\"),
+    ("WorldMap", "WorldMap", "Resource\\Textures\\WorldMap\\geometry\\"),
+    ("Ammo", "Ammo", "Resource\\Textures\\Ammo\\"),
+    ("Items", "Items", "Resource\\Textures\\Items\\"),
+    ("Grass", "Grass", "Resource\\Textures\\Grass\\"),
 ]
 
 
@@ -576,6 +590,59 @@ class GMJSON_OT_select_folder(Operator):
         return {"FINISHED"}
 
 
+class GMJSON_OT_replace_dots_selected(Operator):
+    bl_idname = "gmjson.replace_dots_selected"
+    bl_label = "Replace Dots with Underscores"
+    bl_description = "Rename selected mesh objects: replace dots in object names with underscores"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        coll = context.scene.gmjson_settings.collection
+
+        if not coll:
+            self.report({"WARNING"}, "No collection selected")
+            return {"CANCELLED"}
+
+        targets = selected_meshes_in_collection(context, coll)
+        if not targets:
+            self.report({"WARNING"}, "No selected mesh objects from current collection")
+            return {"CANCELLED"}
+
+        renamed = 0
+        skipped = 0
+
+        for obj in targets:
+            old_name = obj.name
+            new_name = old_name.replace(".", "_")
+
+            if old_name == new_name:
+                skipped += 1
+                continue
+
+            obj.name = new_name
+
+            if obj.name != new_name:
+                skipped += 1
+                continue
+
+            renamed += 1
+
+        rebuild_object_list(context)
+
+        active = context.view_layer.objects.active
+        if active and active.type == "MESH":
+            for i, it in enumerate(context.scene.gmjson_objects):
+                if it.name == active.name:
+                    context.scene.gmjson_settings.active_index = i
+                    break
+
+        self.report(
+            {"INFO"},
+            f"Renamed {renamed} object(s)" + (f", skipped {skipped}" if skipped else "")
+        )
+        return {"FINISHED"}
+
+
 class GMJSON_OT_sync_collection(Operator):
     bl_idname = "gmjson.sync_collection"
     bl_label = "Sync Collection"
@@ -927,6 +994,8 @@ class GMJSON_PT_panel(Panel):
             box.label(text="Duplicate mesh names in collection!", icon="ERROR")
             box.label(text=", ".join(dups[:6]) + (" ..." if len(dups) > 6 else ""))
 
+        col.operator("gmjson.replace_dots_selected", text="Replace Dots with _", icon="SORTALPHA")
+
         col.operator("gmjson.sync_collection", text="Sync (Add Defaults)", icon="FILE_REFRESH").refresh_textures = False
 
         op = col.operator("gmjson.sync_collection", text="Sync + Refresh Textures", icon="TEXTURE")
@@ -1024,6 +1093,7 @@ classes = (
     GMJSON_Settings,
     GMJSON_AddonPreferences,
     GMJSON_OT_select_folder,
+    GMJSON_OT_replace_dots_selected,
     GMJSON_OT_sync_collection,
     GMJSON_OT_save_export,
     GMJSON_OT_refresh_textures_active,

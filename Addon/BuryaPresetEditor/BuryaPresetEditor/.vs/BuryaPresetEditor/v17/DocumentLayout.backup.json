@@ -1,0 +1,70 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\Blender-tool\\Caribbean-Legend---blender-tool\\Addon\\BuryaPresetEditor\\BuryaPresetEditor\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{94CAA81F-4F46-44D2-B3A1-A3679DA3B95D}|BuryaPresetEditor.csproj|d:\\blender-tool\\caribbean-legend---blender-tool\\addon\\buryapreseteditor\\buryapreseteditor\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{94CAA81F-4F46-44D2-B3A1-A3679DA3B95D}|BuryaPresetEditor.csproj|solutionrelative:mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{94CAA81F-4F46-44D2-B3A1-A3679DA3B95D}|BuryaPresetEditor.csproj|d:\\blender-tool\\caribbean-legend---blender-tool\\addon\\buryapreseteditor\\buryapreseteditor\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{94CAA81F-4F46-44D2-B3A1-A3679DA3B95D}|BuryaPresetEditor.csproj|solutionrelative:mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{94CAA81F-4F46-44D2-B3A1-A3679DA3B95D}|BuryaPresetEditor.csproj|d:\\blender-tool\\caribbean-legend---blender-tool\\addon\\buryapreseteditor\\buryapreseteditor\\buryapreseteditor.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{94CAA81F-4F46-44D2-B3A1-A3679DA3B95D}|BuryaPresetEditor.csproj|solutionrelative:buryapreseteditor.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "BuryaPresetEditor.csproj",
+              "DocumentMoniker": "D:\\Blender-tool\\Caribbean-Legend---blender-tool\\Addon\\BuryaPresetEditor\\BuryaPresetEditor\\BuryaPresetEditor.csproj",
+              "RelativeDocumentMoniker": "BuryaPresetEditor.csproj",
+              "ToolTip": "D:\\Blender-tool\\Caribbean-Legend---blender-tool\\Addon\\BuryaPresetEditor\\BuryaPresetEditor\\BuryaPresetEditor.csproj",
+              "RelativeToolTip": "BuryaPresetEditor.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-07-06T17:07:34.724Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "MainWindow.xaml",
+              "DocumentMoniker": "D:\\Blender-tool\\Caribbean-Legend---blender-tool\\Addon\\BuryaPresetEditor\\BuryaPresetEditor\\MainWindow.xaml",
+              "RelativeDocumentMoniker": "MainWindow.xaml",
+              "ToolTip": "D:\\Blender-tool\\Caribbean-Legend---blender-tool\\Addon\\BuryaPresetEditor\\BuryaPresetEditor\\MainWindow.xaml",
+              "RelativeToolTip": "MainWindow.xaml",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2026-07-06T16:56:03.143Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "MainWindow.xaml.cs",
+              "DocumentMoniker": "D:\\Blender-tool\\Caribbean-Legend---blender-tool\\Addon\\BuryaPresetEditor\\BuryaPresetEditor\\MainWindow.xaml.cs",
+              "RelativeDocumentMoniker": "MainWindow.xaml.cs",
+              "ToolTip": "D:\\Blender-tool\\Caribbean-Legend---blender-tool\\Addon\\BuryaPresetEditor\\BuryaPresetEditor\\MainWindow.xaml.cs",
+              "RelativeToolTip": "MainWindow.xaml.cs",
+              "ViewState": "AgIAAMoIAAAAAAAAAAAmwNsIAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-06T16:56:01.023Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
